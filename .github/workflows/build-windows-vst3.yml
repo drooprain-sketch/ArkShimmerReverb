@@ -1,0 +1,45 @@
+name: Build Windows VST3
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-windows-vst3:
+    name: Build Ark Shimmer Reverb VST3 for Windows
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Locate generated VST3
+        shell: pwsh
+        run: |
+          Write-Host "Searching for generated VST3..."
+          Get-ChildItem -Path build -Recurse -Filter "*.vst3" | ForEach-Object { Write-Host $_.FullName }
+
+      - name: Package VST3
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package -Force | Out-Null
+          $vst3 = Get-ChildItem -Path build -Recurse -Filter "Ark Shimmer Reverb.vst3" | Select-Object -First 1
+          if (-not $vst3) {
+            Write-Error "Ark Shimmer Reverb.vst3 was not found in the build folder."
+            exit 1
+          }
+          Copy-Item -Path $vst3.FullName -Destination package -Recurse -Force
+          Compress-Archive -Path package\* -DestinationPath ArkShimmerReverb_Windows_VST3.zip -Force
+
+      - name: Upload VST3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArkShimmerReverb-Windows-VST3
+          path: ArkShimmerReverb_Windows_VST3.zip
